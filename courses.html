@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Мои курсы — Nexus Learn</title>
+  <link rel="stylesheet" href="css/bootstrap.min.css" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<!-- Navbar -->
+<nav class="app-navbar">
+  <a href="courses.html" class="nav-logo">
+    <div class="dot"></div>
+    Nexus Learn
+  </a>
+  <div class="nav-spacer"></div>
+  <span class="nav-user" id="navUser"></span>
+  <button class="btn btn-outline-secondary btn-sm" id="btnLogout">Выйти</button>
+</nav>
+
+<!-- Main -->
+<main class="courses-page">
+  <div class="courses-header">
+    <div>
+      <h1>Мои <span>курсы</span></h1>
+      <p class="sub" id="coursesCount"></p>
+    </div>
+    <div id="tutorActions" class="d-none">
+      <button class="btn btn-primary btn-sm" id="btnNewCourse">
+        + Новый курс
+      </button>
+    </div>
+  </div>
+
+  <div id="coursesGrid" class="courses-grid">
+    <!-- cards injected by JS -->
+  </div>
+
+  <div id="emptyState" class="empty-state d-none">
+    <div class="icon">📚</div>
+    <h3>Курсов пока нет</h3>
+    <p>Когда преподаватель добавит курс — он появится здесь</p>
+  </div>
+
+  <div id="loadingState" class="empty-state">
+    <div class="spinner"></div>
+  </div>
+</main>
+
+<!-- Modal: new course (tutor only) -->
+<div class="modal fade" id="modalNewCourse" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Новый курс</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label class="form-label">Название курса</label>
+          <input type="text" class="form-control" id="newCourseTitle" placeholder="Введите название" />
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Отмена</button>
+        <button class="btn btn-primary btn-sm" id="btnCreateCourse">Создать</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script src="js/config.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/api.js"></script>
+<script src="js/bootstrap.bundle.min.js"></script>
+<script>
+(function () {
+  if (!isAuthenticated()) { location.href = 'login.html'; return; }
+
+  let currentUser = null;
+
+  /* ── Toast ── */
+  function toast(msg, type = '') {
+    const c = document.getElementById('toastContainer');
+    const el = document.createElement('div');
+    el.className = 'toast-msg' + (type ? ' ' + type : '');
+    el.textContent = msg;
+    c.appendChild(el);
+    setTimeout(() => el.remove(), 3000);
+  }
+
+  /* ── Render courses ── */
+  function renderCourses(courses) {
+    const grid    = document.getElementById('coursesGrid');
+    const empty   = document.getElementById('emptyState');
+    const loading = document.getElementById('loadingState');
+    const count   = document.getElementById('coursesCount');
+
+    loading.classList.add('d-none');
+    grid.innerHTML = '';
+
+    if (!courses.length) {
+      empty.classList.remove('d-none');
+      count.textContent = '';
+      return;
+    }
+
+    count.textContent = courses.length + ' ' + plural(courses.length, 'курс', 'курса', 'курсов');
+    empty.classList.add('d-none');
+
+    courses.forEach(course => {
+      const isPublic = course.is_public;
+      const card = document.createElement('a');
+      card.className = 'course-card';
+      card.href = 'course.html?id=' + course.id;
+      card.innerHTML = `
+        <span class="course-card-badge ${isPublic ? 'badge-public' : 'badge-private'}">
+          ${isPublic ? '● Публичный' : '○ Приватный'}
+        </span>
+        <h3>${escHtml(course.title)}</h3>
+        <p>${escHtml(course.description || 'Нет описания')}</p>
+        <span class="course-card-arrow">↗</span>
+      `;
+      grid.appendChild(card);
+    });
+  }
+
+  /* ── Init ── */
+  async function init() {
+    // load user
+    try {
+      currentUser = await API.me();
+      document.getElementById('navUser').textContent = currentUser.email || '';
+    } catch (_) {}
+
+    // load courses
+    try {
+      const courses = await API.getCourses();
+
+      // check if user is tutor of any — show create btn
+      const isTutor = courses.some(c => c.tutor_id === currentUser?.id);
+      if (isTutor || currentUser?.is_tutor) {
+        document.getElementById('tutorActions').classList.remove('d-none');
+      }
+
+      renderCourses(courses);
+    } catch (err) {
+      if (err.status === 401) { clearToken(); location.href = 'login.html'; }
+      else toast('Не удалось загрузить курсы', 'error');
+      document.getElementById('loadingState').classList.add('d-none');
+    }
+  }
+
+  /* ── Logout ── */
+  document.getElementById('btnLogout').addEventListener('click', () => {
+    clearToken();
+    location.href = 'login.html';
+  });
+
+  /* ── Create course ── */
+  document.getElementById('btnNewCourse')?.addEventListener('click', () => {
+    document.getElementById('newCourseTitle').value = '';
+    new bootstrap.Modal('#modalNewCourse').show();
+  });
+
+  document.getElementById('btnCreateCourse').addEventListener('click', async () => {
+    const title = document.getElementById('newCourseTitle').value.trim();
+    if (!title) return;
+    try {
+      const course = await API.createCourse({ title });
+      bootstrap.Modal.getInstance('#modalNewCourse').hide();
+      location.href = 'course.html?id=' + course.id;
+    } catch (err) {
+      toast(err.message || 'Ошибка создания', 'error');
+    }
+  });
+
+  /* ── Helpers ── */
+  function escHtml(s) {
+    return String(s || '')
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+  function plural(n, one, few, many) {
+    const mod10 = n % 10, mod100 = n % 100;
+    if (mod10 === 1 && mod100 !== 11) return n + ' ' + one;
+    if ([2,3,4].includes(mod10) && ![12,13,14].includes(mod100)) return n + ' ' + few;
+    return n + ' ' + many;
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>

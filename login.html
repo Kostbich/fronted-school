@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Войти — Nexus Learn</title>
+  <link rel="stylesheet" href="css/bootstrap.min.css" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<div class="page-center">
+  <div class="auth-wrap">
+
+    <div class="auth-logo">
+      <div class="logo-mark">
+        <div class="logo-icon">⬡</div>
+        <span class="logo-text">Nexus Learn</span>
+      </div>
+    </div>
+
+    <div class="auth-card">
+      <h2>Добро пожаловать</h2>
+      <p class="subtitle">Войдите, чтобы продолжить обучение</p>
+
+      <div id="loginError" class="alert alert-danger d-none" role="alert"></div>
+
+      <div class="form-group">
+        <label class="form-label" for="inputEmail">Email</label>
+        <input type="email" class="form-control" id="inputEmail"
+               placeholder="you@example.com" autocomplete="email" />
+        <div class="invalid-feedback" id="emailErr"></div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="inputPassword">Пароль</label>
+        <input type="password" class="form-control" id="inputPassword"
+               placeholder="••••••••" autocomplete="current-password" />
+        <div class="invalid-feedback" id="passErr"></div>
+      </div>
+
+      <button class="btn btn-primary mt-2" id="btnLogin">
+        <span id="btnLoginText">Войти</span>
+        <span id="btnLoginSpinner" class="d-none spinner-border spinner-border-sm ms-2" role="status"></span>
+      </button>
+    </div>
+
+    <div class="auth-footer">
+      Нет аккаунта? <a href="register.html">Зарегистрироваться</a>
+    </div>
+
+  </div>
+</div>
+
+<script src="js/config.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/api.js"></script>
+<script>
+(function () {
+  if (isAuthenticated()) { location.href = 'courses.html'; return; }
+
+  const btnLogin = document.getElementById('btnLogin');
+  const btnText  = document.getElementById('btnLoginText');
+  const spinner  = document.getElementById('btnLoginSpinner');
+  const errBox   = document.getElementById('loginError');
+
+  function setLoading(on) {
+    btnLogin.disabled = on;
+    btnText.textContent = on ? 'Входим…' : 'Войти';
+    spinner.classList.toggle('d-none', !on);
+  }
+
+  function showErr(msg) {
+    errBox.textContent = msg;
+    errBox.classList.remove('d-none');
+  }
+
+  async function doLogin() {
+    const email    = document.getElementById('inputEmail').value.trim();
+    const password = document.getElementById('inputPassword').value;
+
+    errBox.classList.add('d-none');
+    if (!email || !password) { showErr('Заполните все поля'); return; }
+
+    setLoading(true);
+    try {
+      const data = await API.login(email, password);
+      setToken(data.token || data.access_token);
+      location.href = 'courses.html';
+    } catch (err) {
+      showErr(err.status === 401 ? 'Неверный email или пароль' : (err.message || 'Ошибка сервера'));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  btnLogin.addEventListener('click', doLogin);
+  document.addEventListener('keydown', (e) => { if (e.key === 'Enter') doLogin(); });
+})();
+</script>
+</body>
+</html>

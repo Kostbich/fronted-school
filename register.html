@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Регистрация — Nexus Learn</title>
+  <link rel="stylesheet" href="css/bootstrap.min.css" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<div class="page-center">
+  <div class="auth-wrap">
+
+    <div class="auth-logo">
+      <div class="logo-mark">
+        <div class="logo-icon">⬡</div>
+        <span class="logo-text">Nexus Learn</span>
+      </div>
+    </div>
+
+    <div class="auth-card">
+      <h2>Создать аккаунт</h2>
+      <p class="subtitle">Начните обучение прямо сейчас</p>
+
+      <div id="regError" class="alert alert-danger d-none"></div>
+      <div id="regSuccess" class="alert alert-success d-none">
+        Аккаунт создан! <a href="login.html">Войти</a>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="regEmail">Email</label>
+        <input type="email" class="form-control" id="regEmail" placeholder="you@example.com" />
+        <div class="invalid-feedback" id="regEmailErr"></div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="regPassword">Пароль</label>
+        <input type="password" class="form-control" id="regPassword" placeholder="Минимум 8 символов" />
+        <div class="invalid-feedback" id="regPassErr"></div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="regConfirm">Подтверждение пароля</label>
+        <input type="password" class="form-control" id="regConfirm" placeholder="Повторите пароль" />
+        <div class="invalid-feedback" id="regConfirmErr"></div>
+      </div>
+
+      <button class="btn btn-primary mt-2" id="btnRegister">
+        <span id="btnRegText">Зарегистрироваться</span>
+        <span id="btnRegSpinner" class="d-none spinner-border spinner-border-sm ms-2"></span>
+      </button>
+    </div>
+
+    <div class="auth-footer">
+      Уже есть аккаунт? <a href="login.html">Войти</a>
+    </div>
+
+  </div>
+</div>
+
+<script src="js/config.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/api.js"></script>
+<script>
+(function () {
+  if (isAuthenticated()) { location.href = 'courses.html'; return; }
+
+  const btn     = document.getElementById('btnRegister');
+  const btnText = document.getElementById('btnRegText');
+  const spinner = document.getElementById('btnRegSpinner');
+  const errBox  = document.getElementById('regError');
+  const okBox   = document.getElementById('regSuccess');
+
+  function setLoading(on) {
+    btn.disabled = on;
+    btnText.textContent = on ? 'Создаём…' : 'Зарегистрироваться';
+    spinner.classList.toggle('d-none', !on);
+  }
+
+  function clearErrors() {
+    ['regEmail','regPassword','regConfirm'].forEach(id => {
+      const el = document.getElementById(id);
+      el.classList.remove('is-invalid');
+    });
+    ['regEmailErr','regPassErr','regConfirmErr'].forEach(id => {
+      document.getElementById(id).textContent = '';
+    });
+    errBox.classList.add('d-none');
+    okBox.classList.add('d-none');
+  }
+
+  function fieldErr(inputId, errId, msg) {
+    document.getElementById(inputId).classList.add('is-invalid');
+    document.getElementById(errId).textContent = msg;
+  }
+
+  async function doRegister() {
+    clearErrors();
+    const email    = document.getElementById('regEmail').value.trim();
+    const password = document.getElementById('regPassword').value;
+    const confirm  = document.getElementById('regConfirm').value;
+
+    let valid = true;
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      fieldErr('regEmail', 'regEmailErr', 'Введите корректный email'); valid = false;
+    }
+    if (!password || password.length < 8 || !/[a-zA-Z]/.test(password) || !/\d/.test(password)) {
+      fieldErr('regPassword', 'regPassErr', 'Минимум 8 символов, буквы и цифры'); valid = false;
+    }
+    if (password !== confirm) {
+      fieldErr('regConfirm', 'regConfirmErr', 'Пароли не совпадают'); valid = false;
+    }
+    if (!valid) return;
+
+    setLoading(true);
+    try {
+      await API.register(email, password, confirm);
+      okBox.classList.remove('d-none');
+      setTimeout(() => { location.href = 'login.html'; }, 1200);
+    } catch (err) {
+      const msg = err.data?.detail || err.message || 'Ошибка сервера';
+      if (typeof msg === 'string' && msg.toLowerCase().includes('email')) {
+        fieldErr('regEmail', 'regEmailErr', 'Этот email уже занят');
+      } else {
+        errBox.textContent = typeof msg === 'string' ? msg : JSON.stringify(msg);
+        errBox.classList.remove('d-none');
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  btn.addEventListener('click', doRegister);
+  document.addEventListener('keydown', (e) => { if (e.key === 'Enter') doRegister(); });
+})();
+</script>
+</body>
+</html>
