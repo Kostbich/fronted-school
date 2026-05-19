@@ -6,6 +6,7 @@
   <title>Доска курса — Nexus Learn</title>
   <link rel="stylesheet" href="css/bootstrap.min.css" />
   <link rel="stylesheet" href="css/style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.4/dist/confetti.browser.min.js"></script>
 </head>
 <body class="board-page">
 
@@ -15,9 +16,22 @@
   <span class="course-title" id="courseTitle">Загрузка…</span>
   <div class="ws-status" id="wsStatus" title="WebSocket"></div>
 
+  <div class="course-progress" id="courseProgressWrap">
+    <div class="course-progress-row">
+      <span class="course-progress-label">Прогресс</span>
+      <div class="course-progress-bar">
+        <div class="course-progress-fill" id="courseProgressBar"></div>
+      </div>
+      <span class="course-progress-pct" id="courseProgressPct">0%</span>
+      <span class="course-progress-count">
+        <span id="viewedCount">0</span>/<span id="totalCount">0</span>
+      </span>
+    </div>
+  </div>
+
   <!-- Tutor-only -->
   <button class="btn btn-outline-secondary btn-sm d-none" id="btnPublish">Опубликовать</button>
-  <button class="btn btn-outline-secondary btn-sm d-none" id="btnAddElement">+ Элемент</button>
+  <button class="btn btn-outline-secondary btn-sm d-none" id="btnAddElement">+ Материал</button>
   <button class="btn btn-outline-secondary btn-sm d-none" id="btnLinkMode">Связать</button>
   <button class="btn btn-outline-secondary btn-sm d-none" id="btnDeleteConnections">Очистить связи</button>
 </header>
@@ -46,6 +60,13 @@
     <span class="filter-label">Зум</span>
     <input type="range" id="zoomSlider" min="20" max="200" value="100" />
     <span class="zoom-label" id="zoomPercent">100%</span>
+  </div>
+
+  <div class="toolbar-sep"></div>
+
+  <div class="search-group">
+    <span class="filter-label">Поиск</span>
+    <input type="search" id="boardSearch" class="form-control form-control-sm" placeholder="Поиск по элементам..." />
   </div>
 </div>
 
@@ -82,50 +103,57 @@
   </div>
 </div>
 
-<!-- ─── Modal: new element ──────────────────────────────── -->
+<!-- ─── Modal: new material (расширенная) ──────────────── -->
 <div class="modal fade" id="modalNewElement" tabindex="-1">
-  <div class="modal-dialog modal-dialog-centered">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title">Новый элемент</h5>
+        <h5 class="modal-title">Новый материал</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
-        <div class="mb-2">
-          <label class="form-label">Название *</label>
-          <input type="text" class="form-control" id="newElTitle" placeholder="Тема урока" />
+        <div class="row">
+          <div class="col-md-6 mb-3">
+            <label class="form-label">Название *</label>
+            <input type="text" class="form-control" id="newElTitle" placeholder="Тема урока" />
+          </div>
+          <div class="col-md-6 mb-3">
+            <label class="form-label">Описание / комментарий</label>
+            <textarea class="form-control" id="newElDescription" rows="1" placeholder="Краткое описание материала"></textarea>
+          </div>
         </div>
-        <div class="mb-2">
-          <label class="form-label">Ссылка на контент</label>
-          <input type="url" class="form-control" id="newElContentUrl" placeholder="https://…" />
+        <div class="row">
+          <div class="col-md-6 mb-3">
+            <label class="form-label">Ссылки (через запятую или перенос строки)</label>
+            <textarea class="form-control" id="newElLinks" rows="2" placeholder="https://...&#10;https://..."></textarea>
+          </div>
+          <div class="col-md-6 mb-3">
+            <label class="form-label">Файлы (URL, через запятую или перенос строки)</label>
+            <textarea class="form-control" id="newElFiles" rows="2" placeholder="https://...&#10;https://..."></textarea>
+          </div>
         </div>
-        <div class="mb-2">
-          <label class="form-label">Ссылка на файл</label>
-          <input type="url" class="form-control" id="newElFileUrl" placeholder="https://…" />
-        </div>
-        <div class="mb-2">
-          <label class="form-label">Комментарий тьютора</label>
-          <input type="text" class="form-control" id="newElComment" />
-        </div>
-        <div class="row mb-2">
-          <div class="col-6">
+        <div class="row mb-3">
+          <div class="col-3">
             <label class="form-label">X</label>
             <input type="number" class="form-control" id="newElX" value="100" />
           </div>
-          <div class="col-6">
+          <div class="col-3">
             <label class="form-label">Y</label>
             <input type="number" class="form-control" id="newElY" value="100" />
           </div>
-        </div>
-        <div class="row mb-2">
-          <div class="col-6">
+          <div class="col-3">
             <label class="form-label">Фон</label>
             <input type="color" class="form-control form-control-color" id="newElBg" value="#ffffff" />
           </div>
-          <div class="col-6">
+          <div class="col-3">
             <label class="form-label">Граница</label>
             <input type="color" class="form-control form-control-color" id="newElBorder" value="#333333" />
           </div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Произвольные поля (JSON)</label>
+          <textarea class="form-control" id="newElCustomData" rows="3" placeholder='{"ключ": "значение"}' style="font-family:var(--font-mono);font-size:12px;"></textarea>
+          <div class="form-text">Дополнительные данные, которые сохранятся вместе с материалом.</div>
         </div>
       </div>
       <div class="modal-footer">

@@ -67,9 +67,9 @@
 
   const btn     = document.getElementById('btnRegister');
   const btnText = document.getElementById('btnRegText');
-  const spinner = document.getElementById('btnRegSpinner');
-  const errBox  = document.getElementById('regError');
-  const okBox   = document.getElementById('regSuccess');
+  const spinner  = document.getElementById('btnRegSpinner');
+  const errBox   = document.getElementById('regError');
+  const okBox    = document.getElementById('regSuccess');
 
   function setLoading(on) {
     btn.disabled = on;
@@ -78,11 +78,11 @@
   }
 
   function clearErrors() {
-    ['regEmail','regPassword','regConfirm'].forEach(id => {
+    ['regEmail', 'regPassword', 'regConfirm'].forEach(id => {
       const el = document.getElementById(id);
       el.classList.remove('is-invalid');
     });
-    ['regEmailErr','regPassErr','regConfirmErr'].forEach(id => {
+    ['regEmailErr', 'regPassErr', 'regConfirmErr'].forEach(id => {
       document.getElementById(id).textContent = '';
     });
     errBox.classList.add('d-none');
@@ -96,20 +96,28 @@
 
   async function doRegister() {
     clearErrors();
+
     const email    = document.getElementById('regEmail').value.trim();
     const password = document.getElementById('regPassword').value;
     const confirm  = document.getElementById('regConfirm').value;
 
     let valid = true;
+
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      fieldErr('regEmail', 'regEmailErr', 'Введите корректный email'); valid = false;
+      fieldErr('regEmail', 'regEmailErr', 'Введите корректный email');
+      valid = false;
     }
+
     if (!password || password.length < 8 || !/[a-zA-Z]/.test(password) || !/\d/.test(password)) {
-      fieldErr('regPassword', 'regPassErr', 'Минимум 8 символов, буквы и цифры'); valid = false;
+      fieldErr('regPassword', 'regPassErr', 'Минимум 8 символов, буквы и цифры');
+      valid = false;
     }
+
     if (password !== confirm) {
-      fieldErr('regConfirm', 'regConfirmErr', 'Пароли не совпадают'); valid = false;
+      fieldErr('regConfirm', 'regConfirmErr', 'Пароли не совпадают');
+      valid = false;
     }
+
     if (!valid) return;
 
     setLoading(true);

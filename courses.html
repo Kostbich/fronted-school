@@ -27,6 +27,11 @@
       <h1>Мои <span>курсы</span></h1>
       <p class="sub" id="coursesCount"></p>
     </div>
+
+    <div class="courses-search">
+      <input type="search" id="coursesSearch" class="form-control" placeholder="Поиск по курсам..." />
+    </div>
+
     <div id="tutorActions" class="d-none">
       <button class="btn btn-primary btn-sm" id="btnNewCourse">
         + Новый курс
@@ -71,6 +76,28 @@
   </div>
 </div>
 
+<!-- Modal: edit course title (tutor only) -->
+<div class="modal fade" id="modalEditCourse" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Редактировать курс</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label class="form-label">Название курса</label>
+          <input type="text" class="form-control" id="editCourseTitle" placeholder="Введите название" />
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Отмена</button>
+        <button class="btn btn-primary btn-sm" id="btnSaveCourseTitle">Сохранить</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="toast-container" id="toastContainer"></div>
 
 <script src="js/config.js"></script>
@@ -82,8 +109,9 @@
   if (!isAuthenticated()) { location.href = 'login.html'; return; }
 
   let currentUser = null;
+  let allCourses = [];
+  let editingCourseId = null;
 
-  /* ── Toast ── */
   function toast(msg, type = '') {
     const c = document.getElementById('toastContainer');
     const el = document.createElement('div');
@@ -93,12 +121,24 @@
     setTimeout(() => el.remove(), 3000);
   }
 
-  /* ── Render courses ── */
+  function escHtml(s) {
+    return String(s || '')
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function plural(n, one, few, many) {
+    const mod10 = n % 10, mod100 = n % 100;
+    if (mod10 === 1 && mod100 !== 11) return n + ' ' + one;
+    if ([2, 3, 4].includes(mod10) && ![12, 13, 14].includes(mod100)) return n + ' ' + few;
+    return n + ' ' + many;
+  }
+
   function renderCourses(courses) {
-    const grid    = document.getElementById('coursesGrid');
-    const empty   = document.getElementById('emptyState');
+    const grid = document.getElementById('coursesGrid');
+    const empty = document.getElementById('emptyState');
     const loading = document.getElementById('loadingState');
-    const count   = document.getElementById('coursesCount');
+    const count = document.getElementById('coursesCount');
 
     loading.classList.add('d-none');
     grid.innerHTML = '';
@@ -114,54 +154,110 @@
 
     courses.forEach(course => {
       const isPublic = course.is_public;
-      const card = document.createElement('a');
+      const isOwner = currentUser && currentUser.id === course.tutor_id;
+
+      const card = document.createElement('div');
       card.className = 'course-card';
-      card.href = 'course.html?id=' + course.id;
+      card.style.position = 'relative';
+
       card.innerHTML = `
         <span class="course-card-badge ${isPublic ? 'badge-public' : 'badge-private'}">
           ${isPublic ? '● Публичный' : '○ Приватный'}
         </span>
         <h3>${escHtml(course.title)}</h3>
         <p>${escHtml(course.description || 'Нет описания')}</p>
-        <span class="course-card-arrow">↗</span>
+
+        <div style="display:flex;gap:8px;margin-top:12px;">
+          <a href="course.html?id=${course.id}" class="btn btn-outline-secondary btn-sm" style="flex:1;text-align:center;">Открыть ↗</a>
+          ${isOwner ? `
+            <button class="btn btn-outline-secondary btn-sm btn-edit-course" data-id="${course.id}" data-title="${escHtml(course.title)}" title="Редактировать">✎</button>
+            <button class="btn btn-outline-danger btn-sm btn-delete-course" data-id="${course.id}" data-title="${escHtml(course.title)}" title="Удалить">✕</button>
+          ` : ''}
+        </div>
       `;
+
       grid.appendChild(card);
+    });
+
+    // Привязываем обработчики после рендера
+    document.querySelectorAll('.btn-delete-course').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const id = parseInt(btn.dataset.id);
+        const title = btn.dataset.title;
+        if (!confirm(`Удалить курс «${title}»? Это действие необратимо.`)) return;
+        try {
+          await API.deleteCourse(id);
+          toast('Курс удалён');
+          // Удаляем из локального массива и перерисовываем
+          allCourses = allCourses.filter(c => c.id !== id);
+          renderCourses(allCourses);
+        } catch (err) {
+          toast(err.message || 'Ошибка удаления', 'error');
+        }
+      });
+    });
+
+    document.querySelectorAll('.btn-edit-course').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        editingCourseId = parseInt(btn.dataset.id);
+        document.getElementById('editCourseTitle').value = btn.dataset.title;
+        new bootstrap.Modal('#modalEditCourse').show();
+      });
     });
   }
 
-  /* ── Init ── */
+  function applySearch() {
+    const q = document.getElementById('coursesSearch').value.trim().toLowerCase();
+    if (!q) {
+      renderCourses(allCourses);
+      return;
+    }
+
+    const filtered = allCourses.filter(course => {
+      const text = [
+        course.title,
+        course.description,
+        course.id
+      ].join(' ').toLowerCase();
+      return text.includes(q);
+    });
+
+    renderCourses(filtered);
+  }
+
   async function init() {
-    // load user
     try {
       currentUser = await API.me();
       document.getElementById('navUser').textContent = currentUser.email || '';
     } catch (_) {}
 
-    // load courses
     try {
-      const courses = await API.getCourses();
+      allCourses = await API.getCourses();
 
-      // check if user is tutor of any — show create btn
-      const isTutor = courses.some(c => c.tutor_id === currentUser?.id);
+      const isTutor = allCourses.some(c => c.tutor_id === currentUser?.id);
       if (isTutor || currentUser?.is_tutor) {
         document.getElementById('tutorActions').classList.remove('d-none');
       }
 
-      renderCourses(courses);
+      renderCourses(allCourses);
     } catch (err) {
-      if (err.status === 401) { clearToken(); location.href = 'login.html'; }
-      else toast('Не удалось загрузить курсы', 'error');
+      if (err.status === 401) {
+        clearToken();
+        location.href = 'login.html';
+      } else {
+        toast('Не удалось загрузить курсы', 'error');
+      }
       document.getElementById('loadingState').classList.add('d-none');
     }
   }
 
-  /* ── Logout ── */
   document.getElementById('btnLogout').addEventListener('click', () => {
     clearToken();
     location.href = 'login.html';
   });
 
-  /* ── Create course ── */
   document.getElementById('btnNewCourse')?.addEventListener('click', () => {
     document.getElementById('newCourseTitle').value = '';
     new bootstrap.Modal('#modalNewCourse').show();
@@ -179,18 +275,23 @@
     }
   });
 
-  /* ── Helpers ── */
-  function escHtml(s) {
-    return String(s || '')
-      .replace(/&/g,'&amp;').replace(/</g,'&lt;')
-      .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-  }
-  function plural(n, one, few, many) {
-    const mod10 = n % 10, mod100 = n % 100;
-    if (mod10 === 1 && mod100 !== 11) return n + ' ' + one;
-    if ([2,3,4].includes(mod10) && ![12,13,14].includes(mod100)) return n + ' ' + few;
-    return n + ' ' + many;
-  }
+  // Сохранение редактирования названия курса
+  document.getElementById('btnSaveCourseTitle').addEventListener('click', async () => {
+    const title = document.getElementById('editCourseTitle').value.trim();
+    if (!title || !editingCourseId) return;
+    try {
+      await API.updateCourse(editingCourseId, { title });
+      const course = allCourses.find(c => c.id === editingCourseId);
+      if (course) course.title = title;
+      bootstrap.Modal.getInstance('#modalEditCourse').hide();
+      renderCourses(allCourses);
+      toast('Название обновлено', 'success');
+    } catch (err) {
+      toast(err.message || 'Ошибка', 'error');
+    }
+  });
+
+  document.getElementById('coursesSearch').addEventListener('input', applySearch);
 
   init();
 })();

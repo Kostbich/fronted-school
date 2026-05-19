@@ -42,7 +42,7 @@ const API = {
   }
 };
 
-// Auth
+// ─── Auth ─────────────────────────────────────────────────
 API.register = (email, password, password_confirm) =>
   API.post('/api/auth/register', { email, password, password_confirm });
 
@@ -51,19 +51,20 @@ API.login = (email, password) =>
 
 API.me = () => API.get('/api/auth/me');
 
-// Courses
+// ─── Courses ──────────────────────────────────────────────
 API.getCourses = () => API.get('/api/courses');
 API.getCourse = (id) => API.get('/api/courses/' + id);
 API.getCourseBoard = (id) => API.get('/api/courses/' + id + '/board');
 API.createCourse = (data) => API.post('/api/courses', data);
 API.updateCourse = (id, data) => API.patch('/api/courses/' + id, data);
+API.deleteCourse = (id) => API.delete('/api/courses/' + id);
 
-// Elements
+// ─── Elements ─────────────────────────────────────────────
 API.createElement = (courseId, data) => API.post('/api/courses/' + courseId + '/elements', data);
 API.updateElement = (courseId, elementId, data) => API.patch('/api/courses/' + courseId + '/elements/' + elementId, data);
 API.deleteElement = (courseId, elementId) => API.delete('/api/courses/' + courseId + '/elements/' + elementId);
 
-// Connections
+// ─── Connections ──────────────────────────────────────────
 API.createConnection = (courseId, fromId, toId) =>
   API.post('/api/courses/' + courseId + '/connections', { from_element_id: fromId, to_element_id: toId });
 API.deleteConnection = (courseId, connectionId) =>
@@ -71,6 +72,6 @@ API.deleteConnection = (courseId, connectionId) =>
 API.deleteAllConnections = (courseId) =>
   API.delete('/api/courses/' + courseId + '/connections');
 
-// Progress
+// ─── Progress ─────────────────────────────────────────────
 API.setViewed = (courseId, elementId, viewed) =>
   API.put('/api/courses/' + courseId + '/progress', { element_id: elementId, viewed });
