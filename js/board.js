@@ -7,7 +7,9 @@
  *  - Zoom (слайдер + колесо мыши) и Pan (тяни мышью)
  *  - Фильтрация: непросмотренные + диапазон дат обновления
  *  - Миникарта (Canvas overview всех элементов и связей)
- *  - WebSocket синхронизация (auto-reconnect)
+ *  - WebSocket синхронизация (auto-reconnect) — ВРЕМЕННО ОТКЛЮЧЕНО,
+ *    т.к. на бэкенде отсутствует эндпоинт /ws/course/{id}.
+ *    Приложение работает только через HTTP REST API, без real-time обновлений.
  *  - Режим создания связей между элементами
  *  - Модалки просмотра / редактирования / создания элементов
  *  - Публикация / сокрытие курса (тьютор)
@@ -228,9 +230,14 @@
     }
     const countWrap = document.querySelector('.course-progress-count');
     if (countWrap) countWrap.style.display = 'none';
-    if (dom.wsStatus && isComplete) {
-      dom.wsStatus.className = 'ws-status connected';
-    }
+
+    // ── WS status dot отключён вместе с WebSocket-подключением ──
+    // Раньше здесь принудительно выставлялся "connected" при 100% прогрессе.
+    // Сейчас WS не используется вовсе, поэтому индикатор просто остаётся неактивным.
+    // if (dom.wsStatus && isComplete) {
+    //   dom.wsStatus.className = 'ws-status connected';
+    // }
+
     if (isComplete && !hasCelebrated()) {
       launchConfetti();
       markCelebrated();
@@ -565,7 +572,24 @@
   function refreshPublishBtn() { const pub = state.board.course.is_public; dom.btnPublish.textContent = pub ? 'Сделать приватным' : 'Опубликовать'; dom.btnPublish.className = `btn btn-sm ${pub ? 'btn-danger' : 'btn-success'}`; }
   function initPublish() { dom.btnPublish.addEventListener('click', async () => { try { const updated = await API.updateCourse(state.courseId, { is_public: !state.board.course.is_public }); state.board.course = updated; refreshPublishBtn(); toast(updated.is_public ? 'Курс опубликован' : 'Курс скрыт', 'success'); } catch (err) { toast(err.message || 'Ошибка', 'error'); } }); }
 
-  /* ── WebSocket ── */
+  /* ══════════════════════════════════════════════════════
+     WEBSOCKET — ВРЕМЕННО ОТКЛЮЧЕНО
+     ────────────────────────────────────────────────────
+     На текущем бэкенде (wss://diplom-backend-production-fe9d.up.railway.app)
+     нет эндпоинта /ws/course/{id}, поэтому попытка подключения
+     стабильно завершалась ошибкой и засоряла консоль / вызывала
+     "Failed to fetch"-подобные обрывы в логике переподключения.
+
+     Весь нижеописанный код (connectWS / scheduleWsReconnect /
+     disconnectWS / handleWsMsg) оставлен как есть и может быть
+     включён обратно, как только на бэкенде появится рабочий
+     WebSocket-канал — достаточно раскомментировать вызов
+     connectWS() в функции init() в самом низу файла.
+
+     Сейчас приложение работает исключительно через REST API
+     (api.js): обновления других пользователей не подтягиваются
+     в реальном времени, нужен ручной reload страницы.
+  ══════════════════════════════════════════════════════ */
   let _ws = null, _wsTimer = null, _wsClosedIntentionally = false;
   function wsSetStatus(s) { if (computeProgress().pct === 100) { dom.wsStatus.className = 'ws-status connected'; return; } dom.wsStatus.className = 'ws-status ' + s; }
   function connectWS() { _wsClosedIntentionally = false; wsSetStatus('reconnecting'); try { _ws = new WebSocket(getWsUrl() + '/ws/course/' + state.courseId); } catch (_) { scheduleWsReconnect(); return; } _ws.onopen = () => { wsSetStatus('connected'); clearTimeout(_wsTimer); _wsTimer = null; }; _ws.onclose = ({ code }) => { _ws = null; wsSetStatus(''); if (!_wsClosedIntentionally && code !== 1000) scheduleWsReconnect(); }; _ws.onerror = () => {}; _ws.onmessage = ({ data }) => { try { handleWsMsg(JSON.parse(data)); } catch (_) {} }; }
@@ -585,7 +609,12 @@
       restoreViewport(); dom.courseTitle.textContent = board.course.title; document.title = board.course.title + ' — Nexus Learn';
       if (state.isTutor) { [dom.btnPublish, dom.btnAddElement, dom.btnLinkMode, dom.btnDeleteConns].forEach(el => el && el.classList.remove('d-none')); refreshPublishBtn(); }
       initZoomPan(); initFilters(); initLinkMode(); initDeleteConns(); initAddElement(); initPublish(); initKeyboardShortcuts(); initLiveSearch(); initAnimatedCursor();
-      applyTransform(); renderBoard(); initOrResetViewObserver(); updateProgressUI(); connectWS();
+      applyTransform(); renderBoard(); initOrResetViewObserver(); updateProgressUI();
+
+      // WebSocket отключён — бэкенд не поддерживает /ws/course/{id}.
+      // Раскомментировать строку ниже, когда эндпоинт появится на сервере.
+      // connectWS();
+
       window.addEventListener('beforeunload', disconnectWS);
     } catch (err) { if (err.status === 403) location.href = '403.html'; else if (err.status === 401) { clearToken(); location.href = 'login.html'; } else if (err.status === 404) { toast('Курс не найден', 'error'); setTimeout(() => { location.href = 'courses.html'; }, 2000); } else { location.href = 'courses.html'; } }
   }
