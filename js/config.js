@@ -6,7 +6,7 @@
 // const API_BASE_URL = "http://vfxbuja-m5.prof.ru:8111"
 
 // const API_BASE_URL = "http://192.168.0.11:8111"
-const API_BASE_URL = "http://127.0.0.1:8000"
+const API_BASE_URL = "https://diplom-backend-production-fe9d.up.railway.app"
 
 /**
  * Базовый URL для WebSocket (доска курса).
